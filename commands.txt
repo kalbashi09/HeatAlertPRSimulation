@@ -1,0 +1,2 @@
+Run in PS for the sql server to start:net start MySQL80
+Run is VS code terminal for the backend: dotnet clean backend; dotnet build backend; dotnet run --project backend

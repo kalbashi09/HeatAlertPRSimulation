@@ -47,6 +47,13 @@ _ = Task.Run(async () => {
             var subscribers = await db.GetAllSubscriberIds();
             await bot.BroadcastAlert(message, subscribers);
             Console.WriteLine($"[BROADCAST] Sent {level} to {subscribers.Count} users for {latestAlert.BarangayName}.");
+            Console.WriteLine ("Log stored in the database for future reference.");
+        }
+
+        else if (latestAlert.HeatIndex >= 30 && latestAlert.HeatIndex < 39)
+        {
+            Console.WriteLine("No alert sent, but broadcasting to all subscribers for awareness.");
+            Console.WriteLine ("Log stored in the database for future reference.");
         }
         else if (latestAlert.HeatIndex < 30)
         {
@@ -58,6 +65,7 @@ _ = Task.Run(async () => {
             var subscribers = await db.GetAllSubscriberIds();
             await bot.BroadcastAlert(message, subscribers);
             Console.WriteLine($"[BROADCAST] Sent {level} to {subscribers.Count} users for {latestAlert.BarangayName}.");
+            Console.WriteLine ("Log stored in the database for future reference.");       
         }
         else
         {

@@ -6,13 +6,16 @@ namespace HeatAlert
 {
     public class DatabaseManager 
     {
-        private string connString = "server=localhost;database=HeatIndicator;uid=root;pwd=naturemoonsea;";
-
+        private readonly string _connString;
+        public DatabaseManager(string connString) 
+        {
+            _connString = connString;
+        }
         public async Task SaveHeatLog(AlertResult result)
         {
             try 
             {
-                using var connection = new MySqlConnection(connString);
+                using var connection = new MySqlConnection(_connString);
                 await connection.OpenAsync();
                 Console.WriteLine("--- DB Debug: Connection Opened ---"); // Debug line
 
@@ -42,7 +45,7 @@ namespace HeatAlert
             var logs = new List<AlertResult>();
             try 
             {
-                using var connection = new MySqlConnection(connString);
+                using var connection = new MySqlConnection(_connString);
                 await connection.OpenAsync();
                 
                 string query = "SELECT barangay, heat_index, latitude, longitude FROM heat_logs ORDER BY created_at DESC LIMIT @limit";
@@ -68,7 +71,7 @@ namespace HeatAlert
         // Saves User When They Subscribe
         public async Task SaveSubscriber(long chatId, string username) 
         {
-            using var connection = new MySqlConnection(connString);
+            using var connection = new MySqlConnection(_connString);
             await connection.OpenAsync();
             string query = "INSERT IGNORE INTO subscribers (chat_id, username) VALUES (@id, @user)";
             using var cmd = new MySqlCommand(query, connection);
@@ -80,7 +83,7 @@ namespace HeatAlert
         // Removes User When They Unsubscribe
         public async Task RemoveSubscriber(long chatId) 
         {
-            using var connection = new MySqlConnection(connString);
+            using var connection = new MySqlConnection(_connString);
             await connection.OpenAsync();
 
             // Use a parameterized query to safely remove the user
@@ -102,7 +105,7 @@ namespace HeatAlert
         public async Task<List<long>> GetAllSubscriberIds()
         {
             var ids = new List<long>();
-            using var connection = new MySqlConnection(connString);
+            using var connection = new MySqlConnection(_connString);
             await connection.OpenAsync();
             string query = "SELECT chat_id FROM subscribers";
             using var cmd = new MySqlCommand(query, connection);

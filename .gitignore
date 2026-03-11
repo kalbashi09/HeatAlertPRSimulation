@@ -1,0 +1,14 @@
+# Ignore the configuration file containing your Bot Token and DB Password
+backend/appsetting.json
+
+# Ignore C# build artifacts (the 'bin' and 'obj' folders in your screenshot)
+backend/bin/
+backend/obj/
+
+# Ignore local environment files
+.env
+
+# Ignore VS Code settings and large temp files
+.vscode/
+*.user
+*.suo

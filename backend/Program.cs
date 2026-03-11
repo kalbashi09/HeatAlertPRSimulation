@@ -4,6 +4,10 @@ using Newtonsoft.Json.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Pull values from appsettings.json
+string connString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+string botToken = builder.Configuration["BotSettings:TelegramToken"]!;
+
 // 1. SETUP SERVICES FIRST
 builder.Services.AddCors(options => {
     options.AddPolicy("AllowAll",
@@ -11,8 +15,8 @@ builder.Services.AddCors(options => {
 });
 
 // Create your objects
-var db = new DatabaseManager();
-var bot = new BotAlertSender("8439622862:AAGCRTIItpNNK3UUNT8pUMRwd5WlywyRh1M", db);
+var db = new DatabaseManager(connString);
+var bot = new BotAlertSender(botToken, db);
 
 // Register them BEFORE builder.Build()
 builder.Services.AddSingleton(db);

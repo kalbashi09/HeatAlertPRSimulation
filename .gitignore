@@ -1,5 +1,5 @@
 # Ignore the configuration file containing your Bot Token and DB Password
-backend/appsetting.json
+backend/appsettings.json
 
 # Ignore C# build artifacts (the 'bin' and 'obj' folders in your screenshot)
 backend/bin/

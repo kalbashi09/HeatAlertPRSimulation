@@ -1,6 +1,7 @@
 using Newtonsoft.Json.Linq;
 using System.IO;
 using System.Linq;
+using System; // Added for Math and Console
 
 namespace HeatAlert
 {
@@ -15,84 +16,104 @@ namespace HeatAlert
 
     public class HeatSimulator
     {
-
-        private string GetRelativeDirection(double centerLat, double centerLng, double spikeLat, double spikeLng)
-        {
-            // Simple coordinate comparison for cardinal directions
-            string latDir = spikeLat > centerLat ? "North" : "South";
-            string lngDir = spikeLng > centerLng ? "East" : "West";
-
-            // Check if it's right at the center (within a small threshold)
-            double threshold = 0.001; 
-            if (Math.Abs(spikeLat - centerLat) < threshold && Math.Abs(spikeLng - centerLng) < threshold)
-                return "right at the center";
-
-            // Combine them (e.g., "North-West")
-            return $"{latDir}-{lngDir}";
-        }
-
         public string GetDangerLevel(int heatIndex)
         {
             if (heatIndex >= 49) return "🚨 EXTREME DANGER";
             if (heatIndex >= 42) return "🔥 DANGER";
             if (heatIndex >= 39) return "⚠️ EXTREME CAUTION"; 
-            if (heatIndex >= 30) return "✅ NORMAL";          
-            return "❄️ COOL";                                 // Anything below 30
+            if (heatIndex >= 29) return "✅ NORMAL";           
+            return "❄️ COOL";
         }
 
-        public AlertResult GenerateAlert(string jsonPath)
+        public string IdentifyBarangay(double lat, double lng, string jsonPath)
         {
-            // 1. Read and Parse the JSON
-            string jsonContent = File.ReadAllText(jsonPath);
-            // The ! tells C# "I guarantee this won't be null, shut up warnings"
-            JObject data = JObject.Parse(jsonContent)!; 
-            JArray features = (JArray)data["features"]!;
+            // FIX CS0103: Declare these BEFORE the try block so they exist everywhere
+            string closestBarangay = "Talisay City";
+            double minDistance = double.MaxValue;
 
-            // 2. Pick a random Barangay (Feature)
-            Random rng = new Random();
-            // Fixes CS8602 for the properties
-            var selectedFeature = features[rng.Next(features.Count)];
-            string barangay = selectedFeature["properties"]?["NAME_3"]?.ToString() ?? "Unknown";
+            try
+            {
+                if (!File.Exists(jsonPath)) return "File Not Found";
 
-            // Fixes CS8602/CS8604 for the coordinates
-            var geometry = selectedFeature["geometry"];
-            var coords = geometry?["coordinates"]?[0];
+                string jsonContent = File.ReadAllText(jsonPath);
+                JObject data = JObject.Parse(jsonContent);
+                JArray? features = data["features"] as JArray;
 
-            if (coords == null) 
+                if (features == null) return "Invalid GeoJSON";
+
+                foreach (var feature in features)
                 {
-                    // Instead of returning null, return a 'Safe' dummy to avoid crashes
-                    return new AlertResult { BarangayName = "Error", HeatIndex = 0 }; 
-                } // Safety check to stop warnings
+                    string name = feature["properties"]?["NAME_3"]?.ToString() ?? "Unknown";
+                    var coords = feature["geometry"]?["coordinates"]?[0];
 
-            // 4. Extract and flatten the coordinates into a list we can measure
-            // This tells LINQ to look at each pair [lng, lat] and pull out the 0 index for Lng and 1 for Lat
-            var coordList = coords.Select(c => new { 
-                Lng = (double)(c?[0] ?? 0), 
-                Lat = (double)(c?[1] ?? 0) 
-            });
+                    if (coords != null && coords.HasValues)
+                    {
+                        // 1. Check if it's INSIDE (Perfect Match)
+                        if (IsPointInPolygon(lat, lng, coords)) return name;
 
-            double minLng = coordList.Min(c => c.Lng);
-            double maxLng = coordList.Max(c => c.Lng);
-            double minLat = coordList.Min(c => c.Lat);
-            double maxLat = coordList.Max(c => c.Lat);
+                        // 2. FALLBACK: Calculate distance to avoid "Outside Known Barangay"
+                        // FIX CS8602/CS8604: Added null-checks for the coordinate access
+                        var firstPoint = coords[0];
+                        if (firstPoint != null && firstPoint.Count() >= 2)
+                        {
+                            double firstLng = (double)firstPoint[0]!;
+                            double firstLat = (double)firstPoint[1]!;
+                            
+                            // Simple Pythagorean distance
+                            double dist = Math.Sqrt(Math.Pow(lat - firstLat, 2) + Math.Pow(lng - firstLng, 2));
 
-            double centerLat = coordList.Average(c => c.Lat);
-            double centerLng = coordList.Average(c => c.Lng);
+                            if (dist < minDistance)
+                            {
+                                minDistance = dist;
+                                closestBarangay = name;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) 
+            { 
+                Console.WriteLine($"[GEO-ERROR] {ex.Message}"); 
+            }
 
-            // 5. Generate random Lat/Lng within that specific box
-            double randomLat = rng.NextDouble() * (maxLat - minLat) + minLat;
-            double randomLng = rng.NextDouble() * (maxLng - minLng) + minLng;
-            int randomHeat = rng.Next(27, 51); // Generate a dangerous temp
+            // If we are within ~500 meters of a boundary, just give them that Barangay
+            return (minDistance < 0.005) ? closestBarangay : "Talisay (Outside)";
+        }
 
-            string direction = GetRelativeDirection(centerLat, centerLng, randomLat, randomLng);
+        private bool IsPointInPolygon(double lat, double lng, JToken polygon)
+        {
+            bool isInside = false;
+            var points = polygon.Children().ToList(); 
+            int j = points.Count - 1;
+
+            for (int i = 0; i < points.Count; i++)
+            {
+                double piLng = (double)points[i][0]!;
+                double piLat = (double)points[i][1]!;
+                double pjLng = (double)points[j][0]!;
+                double pjLat = (double)points[j][1]!;
+
+                if ((((piLat <= lat) && (lat < pjLat)) || ((pjLat <= lat) && (lat < piLat))) &&
+                    (lng < (pjLng - piLng) * (lat - piLat) / (pjLat - piLat) + piLng))
+                {
+                    isInside = !isInside;
+                }
+                j = i;
+            }
+            return isInside;
+        }
+
+        public AlertResult CreateManualAlert(double lat, double lng, int heatIndex, string jsonPath)
+        {
+            string barangay = IdentifyBarangay(lat, lng, jsonPath);
 
             return new AlertResult
             {
                 BarangayName = barangay,
-                Lat = randomLat,
-                Lng = randomLng,
-                HeatIndex = randomHeat,
-                RelativeLocation = $"{direction} of {barangay}"
+                Lat = lat,
+                Lng = lng,
+                HeatIndex = heatIndex,
+                RelativeLocation = "Live Mobile Sensor"
             };
         }
     }

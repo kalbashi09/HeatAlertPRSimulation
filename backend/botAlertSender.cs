@@ -1,13 +1,15 @@
 using Telegram.Bot;
-using Telegram.Bot.Polling; // Needed for StartReceiving
+using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace HeatAlert
 {
     public class BotAlertSender
     {
         private readonly TelegramBotClient _botClient;
-        private readonly DatabaseManager _db; // Link to your SQL manager
+        private readonly DatabaseManager _db;
+        private static readonly Dictionary<long, string> _pendingSimulations = new();
 
         public BotAlertSender(string token, DatabaseManager db)
         {
@@ -15,45 +17,102 @@ namespace HeatAlert
             _db = db;
         }
 
-        // --- THE LISTENER ---
         public void StartBot()
         {
-            var receiverOptions = new ReceiverOptions { AllowedUpdates = { } }; // Receive all update types
+            var receiverOptions = new ReceiverOptions { AllowedUpdates = { } };
             _botClient.StartReceiving(HandleUpdateAsync, HandleErrorAsync, receiverOptions);
             Console.WriteLine("🤖 Bot is now listening for subscribers...");
         }
 
+        // --- NEW: CENTRALIZED METHOD (SINGLE SOURCE OF TRUTH) ---
+        // This handles updating the map, formatting the text, and broadcasting.
+        public async Task ProcessAndBroadcastAlert(AlertResult result)
+        {
+            // 1. Update the Web Map Bridge
+            GlobalData.LatestAlert = result;
+
+            // 2. Determine Danger Level
+            var simulator = new HeatSimulator();
+            string level = simulator.GetDangerLevel(result.HeatIndex);
+
+            // 3. One Format for Everything
+            string alertMsg = $"{level}\n" +
+                              $"🌡️ Temp: {result.HeatIndex}°C\n" +
+                              $"📍 Location: {result.BarangayName}\n" +
+                              $"🌐 Coord: {result.Lat:F4}, {result.Lng:F4}";
+
+            // 4. Send to all subscribers
+            var subs = await _db.GetAllSubscriberIds();
+            await BroadcastAlert(alertMsg, subs);
+        }
+
         private async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken ct)
         {
+            if (update.Message?.Location != null)
+            {
+                await ProcessManualSensorPing(bot, update.Message, ct);
+                return;
+            }
+
             if (update.Message is not { Text: not null } message) return;
 
             long chatId = message.Chat.Id;
             string username = message.From?.Username ?? "UnknownUser";
+            string text = message.Text.ToLower();
 
-            if (message.Text.ToLower() == "/subscribeservice")
+            string[] simCommands = { "/exdanger", "/danger", "/caution", "/normal", "/cool" };
+            if (simCommands.Contains(text))
             {
-                await _db.SaveSubscriber(chatId, username);
-                
-                // Updated to use the more modern SendMessage
-                await bot.SendMessage(
-                    chatId: chatId, 
-                    text: "✅ You WILL NOW RECEIVE HEAT SIGNATURE UPDATES within Talisay Heat Alerts!",
-                    cancellationToken: ct
-                );
+                _pendingSimulations[chatId] = text;
+                var keyboard = new ReplyKeyboardMarkup(new[] {
+                    new KeyboardButton("📡 Confirm Sensor Location") { RequestLocation = true }
+                }) { ResizeKeyboard = true, OneTimeKeyboard = true };
+
+                await bot.SendMessage(chatId, $"🛠️ **Simulation: {text.ToUpper()}**\nTap the button below to send GPS.", 
+                    replyMarkup: keyboard, cancellationToken: ct);
+                return;
             }
 
-            // Inside HandleUpdateAsync in botAlertSender.cs
-            if (message.Text.ToLower() == "/subscribeservice")
+            if (text == "/subscribeservice")
             {
                 await _db.SaveSubscriber(chatId, username);
-                await bot.SendMessage(chatId, "✅ Subscribed!");
+                await bot.SendMessage(chatId, "✅ Subscribed!", cancellationToken: ct);
             }
-            else if (message.Text.ToLower() == "/unsubscribeservice") // NEW COMMAND
+            else if (text == "/unsubscribeservice")
             {
                 await _db.RemoveSubscriber(chatId);
-                await bot.SendMessage(chatId, "👋 You have been unsubscribed. You will no longer receive heat alerts.");
+                await bot.SendMessage(chatId, "👋 Unsubscribed.");
             }
+        }
 
+        private async Task ProcessManualSensorPing(ITelegramBotClient bot, Message message, CancellationToken ct)
+        {
+            long chatId = message.Chat.Id;
+            if (!_pendingSimulations.TryGetValue(chatId, out var command)) command = "/danger";
+
+            int simTemp = command switch {
+                "/exdanger" => 49,
+                "/danger"   => 42,
+                "/caution"  => 39,
+                "/normal"   => 30,
+                _           => 25 
+            };
+
+            // Use the simulator to package the data (Reverse Geocoding included)
+            var simulator = new HeatSimulator();
+            var result = simulator.CreateManualAlert(
+                message.Location!.Latitude, 
+                message.Location.Longitude, 
+                simTemp, 
+                "../sharedresource/talisaycitycebu.json"
+            );
+
+            // CALL THE CENTRALIZED METHOD
+            await ProcessAndBroadcastAlert(result);
+
+            await bot.SendMessage(chatId, $"✅ Signal Sent to Map and Subscribers.", 
+                replyMarkup: new ReplyKeyboardRemove(), cancellationToken: ct);
+            _pendingSimulations.Remove(chatId);
         }
 
         private Task HandleErrorAsync(ITelegramBotClient bot, Exception ex, CancellationToken ct)
@@ -62,33 +121,17 @@ namespace HeatAlert
             return Task.CompletedTask;
         }
 
-        // --- THE BROADCASTER ---
-        // Instead of sending to ONE hardcoded ID, send to the whole list from DB
-        // --- THE BROADCASTER ---
-// Refactored to accept a pre-formatted string instead of raw doubles
         public async Task BroadcastAlert(string alertMsg, List<long> subscriberIds)
         {
-            // Use a counter for better console logging
             int sentCount = 0;
-
             foreach (var id in subscriberIds)
             {
-                try 
-                {
-                    // Note: Telegram.Bot v21+ uses SendMessage instead of SendTextMessageAsync
-                    await _botClient.SendMessage(
-                        chatId: id, 
-                        text: alertMsg
-                    );
+                try {
+                    await _botClient.SendMessage(chatId: id, text: alertMsg);
                     sentCount++;
-                } 
-                catch (Exception ex)
-                {
-                    // Useful for debugging if a user blocked the bot
-                    Console.WriteLine($"⚠️ Could not send to {id}: {ex.Message}");
-                }
+                } catch { /* Ignore blocked bots */ }
             }
-            Console.WriteLine($"📢 Broadcast complete. Sent to {sentCount} subscribers.");
+            Console.WriteLine($"📢 Broadcast: {sentCount} users notified.");
         }
     }
 }

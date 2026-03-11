@@ -8,6 +8,63 @@ namespace HeatAlert
     {
         private string connString = "server=localhost;database=HeatIndicator;uid=root;pwd=naturemoonsea;";
 
+        public async Task SaveHeatLog(AlertResult result)
+        {
+            try 
+            {
+                using var connection = new MySqlConnection(connString);
+                await connection.OpenAsync();
+                Console.WriteLine("--- DB Debug: Connection Opened ---"); // Debug line
+
+                string query = @"INSERT INTO heat_logs (barangay, heat_index, latitude, longitude, created_at) 
+                                VALUES (@brgy, @heat, @lat, @lng, NOW())";
+                                
+                using var cmd = new MySqlCommand(query, connection);
+                cmd.Parameters.AddWithValue("@brgy", result.BarangayName ?? "Unknown");
+                cmd.Parameters.AddWithValue("@heat", result.HeatIndex);
+                cmd.Parameters.AddWithValue("@lat", result.Lat);
+                cmd.Parameters.AddWithValue("@lng", result.Lng);
+                
+                int rows = await cmd.ExecuteNonQueryAsync();
+                Console.WriteLine($"--- DB Debug: Rows Affected: {rows} ---"); // Debug line
+            }
+            catch (Exception ex) // Catch EVERYTHING
+            {
+                Console.WriteLine($"[CRITICAL DB ERROR]: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+            }
+        }
+        
+        //
+        // Store Alert Data to Database for frontend GET!
+        public async Task<List<AlertResult>> GetHistory(int limit = 20)
+        {
+            var logs = new List<AlertResult>();
+            try 
+            {
+                using var connection = new MySqlConnection(connString);
+                await connection.OpenAsync();
+                
+                string query = "SELECT barangay, heat_index, latitude, longitude FROM heat_logs ORDER BY created_at DESC LIMIT @limit";
+                using var cmd = new MySqlCommand(query, connection);
+                cmd.Parameters.AddWithValue("@limit", limit);
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    logs.Add(new AlertResult {
+                        BarangayName = reader.GetString(0),
+                        HeatIndex = reader.GetInt32(1),
+                        Lat = reader.GetDouble(2),
+                        Lng = reader.GetDouble(3),
+                        RelativeLocation = "Historical Record"
+                    });
+                }
+            }
+            catch (Exception ex) { Console.WriteLine($"[DB ERROR] {ex.Message}"); }
+            return logs;
+        }
+
         // Saves User When They Subscribe
         public async Task SaveSubscriber(long chatId, string username) 
         {
@@ -57,6 +114,11 @@ namespace HeatAlert
             return ids;
         }
 
+
+        // Saves a history log of the heat reading
+        
+
         // Additional database methods can be added here
+
     }
 }

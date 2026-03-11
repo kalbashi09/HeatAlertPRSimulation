@@ -1,79 +1,91 @@
-﻿using Microsoft.AspNetCore.Cors;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using HeatAlert;
+using Newtonsoft.Json.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Register CORS - Must be before builder.Build()
+// 1. SETUP SERVICES FIRST
 builder.Services.AddCors(options => {
     options.AddPolicy("AllowAll",
         policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 });
 
+// Create your objects
+var db = new DatabaseManager();
+var bot = new BotAlertSender("8439622862:AAGCRTIItpNNK3UUNT8pUMRwd5WlywyRh1M", db);
+
+// Register them BEFORE builder.Build()
+builder.Services.AddSingleton(db);
+builder.Services.AddSingleton(bot);
+
 var app = builder.Build();
 
-// 2. Activate CORS - Must be before app.Run()
+// 2. CONFIGURE MIDDLEWARE
 app.UseCors("AllowAll");
+app.RegisterAlertEndpoints(db); // Pass db directly if needed, or let DI handle it
 
-// --- YOUR ORIGINAL OBJECTS ---
-var db = new DatabaseManager();
-var bot = new BotAlertSender("8439622862:AAGCRTIItpNNK3UUNT8pUMRwd5WlywyRh1M", db); 
-var simulator = new HeatSimulator(); 
-AlertResult latestAlert = null; // Bridge for the API
-
-// 3. API ENDPOINT for your Front-end Developer
-app.MapGet("/api/current-alert", () => {
-    return latestAlert != null ? Results.Ok(latestAlert) : Results.NotFound("No data yet.");
-});
-
-// 4. YOUR ORIGINAL LOOP (Wrapped in a Task to prevent freezing the API)
+// 3. START BACKGROUND SIMULATION
 _ = Task.Run(async () => {
     bot.StartBot();
-    Console.WriteLine("🚀 Monitoring system active. Simulation loop starting...");
+    Console.WriteLine("🚀 Monitoring system active...");
+    
+    var simulator = new HeatSimulator(); 
+    var rng = new Random();
 
     while (true)
     {
-        // Update the bridge variable so the API can see it
-        latestAlert = simulator.GenerateAlert("../sharedresource/talisaycitycebu.json");
-        string level = simulator.GetDangerLevel(latestAlert.HeatIndex);
+        try {
+            // MOVE rng.Next INSIDE the loop so every 30s is a different temp!
+            int simTemp = rng.Next(25, 52); 
 
-        if (latestAlert.HeatIndex >= 39)
-        {
-            string message = $"{level}\n" +
-                             $"🌡️ Temp: {latestAlert.HeatIndex}°C\n" +
-                             $"📍 Location: {latestAlert.RelativeLocation}\n" +
-                             $"🌐 Coord: {latestAlert.Lat:F4}, {latestAlert.Lng:F4}";
+            var randomPoint = GetRandomTalisayPoint("../sharedresource/talisaycitycebu.json");
+            
+            var result = simulator.CreateManualAlert(
+                randomPoint.lat, 
+                randomPoint.lng, 
+                simTemp, 
+                "../sharedresource/talisaycitycebu.json"
+            );
+            
+            GlobalData.LatestAlert = result; 
+            await db.SaveHeatLog(result); // This writes it to MySQL
+            Console.WriteLine($"[LOG] Location: {result.BarangayName} | Temp: {result.HeatIndex}°C");
 
-            var subscribers = await db.GetAllSubscriberIds();
-            await bot.BroadcastAlert(message, subscribers);
-            Console.WriteLine($"[BROADCAST] Sent {level} to {subscribers.Count} users for {latestAlert.BarangayName}.");
-            Console.WriteLine ("Log stored in the database for future reference.");
+            // Only broadcast if it's dangerous or unusually cool
+            if (result.HeatIndex >= 39 || result.HeatIndex < 30)
+            {
+                await bot.ProcessAndBroadcastAlert(result);
+            }
         }
-
-        else if (latestAlert.HeatIndex >= 30 && latestAlert.HeatIndex < 39)
-        {
-            Console.WriteLine("No alert sent, but broadcasting to all subscribers for awareness.");
-            Console.WriteLine ("Log stored in the database for future reference.");
-        }
-        else if (latestAlert.HeatIndex < 30)
-        {
-            string message = $"{level}\n" +
-                             $"🌡️ Temp: {latestAlert.HeatIndex}°C\n" +
-                             $"📍 Location: {latestAlert.RelativeLocation}\n" +
-                             $"🌐 Coord: {latestAlert.Lat:F4}, {latestAlert.Lng:F4}";
-
-            var subscribers = await db.GetAllSubscriberIds();
-            await bot.BroadcastAlert(message, subscribers);
-            Console.WriteLine($"[BROADCAST] Sent {level} to {subscribers.Count} users for {latestAlert.BarangayName}.");
-            Console.WriteLine ("Log stored in the database for future reference.");       
-        }
-        else
-        {
-            Console.WriteLine($"[STABLE] {latestAlert.BarangayName}: {latestAlert.HeatIndex}°C ({level}). No alert sent.");
-        }
-
-        await Task.Delay(30000); 
+        catch (Exception ex) { Console.WriteLine($"Error: {ex.Message}"); }
+        
+        await Task.Delay(30000); // 30 seconds
     }
 });
 
-app.Run(); // Starts the server (Kestrel) on http://localhost:5000 (usually)
+app.Run();
+
+// --- HELPERS ---
+(double lat, double lng) GetRandomTalisayPoint(string path) {
+    var json = File.ReadAllText(path);
+    var data = JObject.Parse(json);
+    var features = (JArray)data["features"]!;
+    
+    var randomBarangay = features[new Random().Next(features.Count)];
+    var geometry = randomBarangay["geometry"];
+    string type = geometry?["type"]?.ToString() ?? "";
+
+    // This handles both simple Polygons and complex MultiPolygons common in Cebu maps
+    JToken? coord = type switch {
+        "Polygon" => geometry?["coordinates"]?[0]?[0],
+        "MultiPolygon" => geometry?["coordinates"]?[0]?[0]?[0],
+        _ => null
+    };
+
+    if (coord == null) return (10.2447, 123.8480); // Default to Talisay City Hall if it fails
+    return ((double)coord[1], (double)coord[0]); 
+}
+
+public static class GlobalData {
+    public static AlertResult? LatestAlert { get; set; }
+}

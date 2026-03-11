@@ -6,7 +6,7 @@ namespace HeatAlert
 {
     public class DatabaseManager 
     {
-        private string connString = "server=localhost;database=HeatIndicator;uid=root;pwd=shinju0728;";
+        private string connString = "server=localhost;database=HeatIndicator;uid=root;pwd=naturemoonsea;";
 
         // Saves User When They Subscribe
         public async Task SaveSubscriber(long chatId, string username) 

@@ -1,7 +1,7 @@
 using Newtonsoft.Json.Linq;
-using System.IO;
+using System;
+using System.Collections.Generic;
 using System.Linq;
-using System; // Added for Math and Console
 
 namespace HeatAlert
 {
@@ -17,6 +17,25 @@ namespace HeatAlert
 
     public class HeatSimulator
     {
+        private readonly JArray? _features;
+
+        // CONSTRUCTOR: This runs only ONCE when you do 'new HeatSimulator(cachedJson)'
+        public HeatSimulator(string jsonContent)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(jsonContent)) return;
+                
+                JObject data = JObject.Parse(jsonContent);
+                _features = data["features"] as JArray;
+                Console.WriteLine("✅ HeatSimulator: Map features loaded into memory.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SIM-INIT-ERROR] Failed to parse GeoJSON: {ex.Message}");
+            }
+        }
+
         public string GetDangerLevel(int heatIndex)
         {
             if (heatIndex >= 49) return "🚨 EXTREME DANGER";
@@ -26,63 +45,51 @@ namespace HeatAlert
             return "❄️ COOL";
         }
 
-       // This method reads the GeoJSON file and determines which barangay the coordinates belong to
-        public string IdentifyBarangay(double lat, double lng, string jsonPath) 
+        public string IdentifyBarangay(double lat, double lng) 
         {
+            if (_features == null) return "Map Data Uninitialized";
 
             string closestBarangay = "Talisay City";
             double minDistance = double.MaxValue;
 
-            try
+            foreach (var feature in _features)
             {
-                if (!File.Exists(jsonPath)) return "File Not Found";
+                string name = feature["properties"]?["NAME_3"]?.ToString() ?? "Unknown";
+                
+                // GeoJSON coordinates can be inside "geometry"
+                var geometry = feature["geometry"];
+                var type = geometry?["type"]?.ToString();
+                
+                // Get the correct coordinate array based on Polygon or MultiPolygon
+                JToken? coords = type == "MultiPolygon" 
+                    ? geometry?["coordinates"]?[0]?[0] 
+                    : geometry?["coordinates"]?[0];
 
-                string jsonContent = File.ReadAllText(jsonPath);
-                JObject data = JObject.Parse(jsonContent);
-                JArray? features = data["features"] as JArray;
-
-                if (features == null) return "Invalid GeoJSON";
-
-                foreach (var feature in features)
+                if (coords != null && coords.HasValues)
                 {
-                    string name = feature["properties"]?["NAME_3"]?.ToString() ?? "Unknown";
-                    var coords = feature["geometry"]?["coordinates"]?[0];
+                    // 1. Ray Casting Check (Inside the boundary?)
+                    if (IsPointInPolygon(lat, lng, coords)) return name;
 
-                    if (coords != null && coords.HasValues)
+                    // 2. Fallback distance check
+                    var firstPoint = coords[0];
+                    if (firstPoint != null && firstPoint.Count() >= 2)
                     {
-                        // 1. Check if it's INSIDE (Perfect Match)
-                        if (IsPointInPolygon(lat, lng, coords)) return name;
+                        double firstLng = (double)firstPoint[0]!;
+                        double firstLat = (double)firstPoint[1]!;
+                        double dist = Math.Sqrt(Math.Pow(lat - firstLat, 2) + Math.Pow(lng - firstLng, 2));
 
-                        // 2. FALLBACK: Calculate distance to avoid "Outside Known Barangay"
-                        // FIX CS8602/CS8604: Added null-checks for the coordinate access
-                        var firstPoint = coords[0];
-                        if (firstPoint != null && firstPoint.Count() >= 2)
+                        if (dist < minDistance)
                         {
-                            double firstLng = (double)firstPoint[0]!;
-                            double firstLat = (double)firstPoint[1]!;
-                            
-                            // Simple Pythagorean distance
-                            double dist = Math.Sqrt(Math.Pow(lat - firstLat, 2) + Math.Pow(lng - firstLng, 2));
-
-                            if (dist < minDistance)
-                            {
-                                minDistance = dist;
-                                closestBarangay = name;
-                            }
+                            minDistance = dist;
+                            closestBarangay = name;
                         }
                     }
                 }
             }
-            catch (Exception ex) 
-            { 
-                Console.WriteLine($"[GEO-ERROR] {ex.Message}"); 
-            }
-
-            // If we are within ~500 meters of a boundary, just give them that Barangay
             return (minDistance < 0.005) ? closestBarangay : "Talisay (Outside)";
         }
 
-        private bool IsPointInPolygon(double lat, double lng, JToken polygon) //This Methood uses the Ray Casting algorithm to determine if the point is inside the polygon
+        private bool IsPointInPolygon(double lat, double lng, JToken polygon)
         {
             bool isInside = false;
             var points = polygon.Children().ToList(); 
@@ -105,16 +112,16 @@ namespace HeatAlert
             return isInside;
         }
 
-        public AlertResult CreateManualAlert(double lat, double lng, int heatIndex, string jsonPath)
+        // Removed jsonPath from parameters because the data is already in memory!
+        public AlertResult CreateManualAlert(double lat, double lng, int heatIndex)
         {
-            string barangay = IdentifyBarangay(lat, lng, jsonPath);
-
             return new AlertResult
             {
-                BarangayName = barangay,
+                BarangayName = IdentifyBarangay(lat, lng),
                 Lat = lat,
                 Lng = lng,
                 HeatIndex = heatIndex,
+                CreatedAt = DateTime.Now,
                 RelativeLocation = "Live Mobile Sensor"
             };
         }

@@ -9,12 +9,15 @@ namespace HeatAlert
     {
         private readonly TelegramBotClient _botClient;
         private readonly DatabaseManager _db;
+        private readonly string _mapData; // Store the cached JSON here
         private static readonly Dictionary<long, string> _pendingSimulations = new();
 
-        public BotAlertSender(string token, DatabaseManager db)
+        // 1. Updated Constructor to receive the JSON string
+        public BotAlertSender(string token, DatabaseManager db, string mapData)
         {
             _botClient = new TelegramBotClient(token);
             _db = db;
+            _mapData = mapData; 
         }
 
         public void StartBot()
@@ -24,24 +27,19 @@ namespace HeatAlert
             Console.WriteLine("🤖 Bot is now listening for subscribers...");
         }
 
-        // --- NEW: CENTRALIZED METHOD (SINGLE SOURCE OF TRUTH) ---
-        // This handles updating the map, formatting the text, and broadcasting.
         public async Task ProcessAndBroadcastAlert(AlertResult result)
         {
-            // 1. Update the Web Map Bridge
             GlobalData.LatestAlert = result;
 
-            // 2. Determine Danger Level
-            var simulator = new HeatSimulator();
+            // 2. FIXED: Pass _mapData to constructor
+            var simulator = new HeatSimulator(_mapData);
             string level = simulator.GetDangerLevel(result.HeatIndex);
 
-            // 3. One Format for Everything
             string alertMsg = $"{level}\n" +
                               $"🌡️ Temp: {result.HeatIndex}°C\n" +
                               $"📍 Location: {result.BarangayName}\n" +
                               $"🌐 Coord: {result.Lat:F4}, {result.Lng:F4}";
 
-            // 4. Send to all subscribers
             var subs = await _db.GetAllSubscriberIds();
             await BroadcastAlert(alertMsg, subs);
         }
@@ -81,7 +79,7 @@ namespace HeatAlert
             else if (text == "/unsubscribeservice")
             {
                 await _db.RemoveSubscriber(chatId);
-                await bot.SendMessage(chatId, "👋 Unsubscribed.");
+                await bot.SendMessage(chatId, "👋 Unsubscribed.", cancellationToken: ct);
             }
         }
 
@@ -98,16 +96,14 @@ namespace HeatAlert
                 _           => 24 
             };
 
-            // Use the simulator to package the data (Reverse Geocoding included)
-            var simulator = new HeatSimulator();
+            // 3. FIXED: Initialize with _mapData and remove 4th argument
+            var simulator = new HeatSimulator(_mapData);
             var result = simulator.CreateManualAlert(
                 message.Location!.Latitude, 
                 message.Location.Longitude, 
-                simTemp, 
-                "../sharedresource/talisaycitycebu.json"
+                simTemp
             );
 
-            // CALL THE CENTRALIZED METHOD
             await ProcessAndBroadcastAlert(result);
 
             await bot.SendMessage(chatId, $"✅ Signal Sent to Map and Subscribers.", 

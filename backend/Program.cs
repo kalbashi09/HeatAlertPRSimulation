@@ -4,39 +4,50 @@ using Newtonsoft.Json.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Pull values from appsettings.json
 string connString = builder.Configuration.GetConnectionString("DefaultConnection")!;
 string botToken = builder.Configuration["BotSettings:TelegramToken"]!;
 
-// 1. Define the dynamic path at the top of your Program.cs (after builder is created)
+// 1. ROBUST PATH CHECKING
 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-// This goes from bin/Debug -> bin -> backend -> HeatAlertPRSimulation -> sharedresource
-string jsonPath = Path.GetFullPath(Path.Combine(baseDir , "..", "..", "..", "..", "sharedresource", "talisaycitycebu.json"));
+// We try the most likely path first (3 levels up from bin/Debug/netX.0)
+string jsonPath = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "sharedresource", "talisaycitycebu.json"));
 
-// 1. SETUP SERVICES FIRST
+// FALLBACK: If 3 levels fails, try 4 levels (sometimes VS structure varies)
+if (!File.Exists(jsonPath)) {
+    jsonPath = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "sharedresource", "talisaycitycebu.json"));
+}
+
+string cachedJson = "";
+try {
+    cachedJson = File.ReadAllText(jsonPath);
+    Console.WriteLine($"✅ GeoJSON loaded from: {jsonPath}");
+} catch (Exception ex) {
+    // If this hits, the simulation will definitely fail.
+    Console.WriteLine($"❌ CRITICAL PATH ERROR: {ex.Message}");
+}
+
 builder.Services.AddCors(options => {
     options.AddPolicy("AllowAll",
         policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 });
 
-// Create your objects
 var db = new DatabaseManager(connString);
-var bot = new BotAlertSender(botToken, db);
+var bot = new BotAlertSender(botToken, db, cachedJson);
 
-// Register them BEFORE builder.Build()
 builder.Services.AddSingleton(db);
 builder.Services.AddSingleton(bot);
 
 var app = builder.Build();
 
-// 2. CONFIGURE MIDDLEWARE
 app.UseCors("AllowAll");
-app.RegisterAlertEndpoints(db); // Pass db directly if needed, or let DI handle it
+app.RegisterAlertEndpoints(db);
 
-// 3. START BACKGROUND SIMULATION
+// 2. START SIMULATION
 _ = Task.Run(async () => {
     bot.StartBot();
-    var simulator = new HeatSimulator(); 
+    
+    // Pass the data to the simulator once
+    var simulator = new HeatSimulator(cachedJson); 
     var rng = new Random();
 
     while (true)
@@ -44,25 +55,23 @@ _ = Task.Run(async () => {
         try {
             int simTemp = rng.Next(25, 52); 
 
-            // Use jsonPath instead of "../sharedresource/..."
-            var randomPoint = GetRandomTalisayPoint(jsonPath);
+            // Pass the cached string
+            var randomPoint = GetRandomTalisayPoint(cachedJson);
             
-            var result = simulator.CreateManualAlert(
-                randomPoint.lat, 
-                randomPoint.lng, 
-                simTemp, 
-                jsonPath // CHANGE THIS TOO
-            ); 
+            // This method in HeatSimulator.cs must NOT take a 'path' anymore
+            var result = simulator.CreateManualAlert(randomPoint.lat, randomPoint.lng, simTemp); 
             
             GlobalData.LatestAlert = result; 
             await db.SaveHeatLog(result); 
             
+            Console.WriteLine($"[LOG] {result.BarangayName} | {result.HeatIndex}°C | {DateTime.Now:hh:mm:ss tt}");
+
             if (result.HeatIndex >= 39 || result.HeatIndex < 29)
             {
                 await bot.ProcessAndBroadcastAlert(result);
             }
         }
-        catch (Exception ex) { Console.WriteLine($"Error: {ex.Message}"); }
+        catch (Exception ex) { Console.WriteLine($"Simulation Loop Error: {ex.Message}"); }
         
         await Task.Delay(30000); 
     }
@@ -71,24 +80,28 @@ _ = Task.Run(async () => {
 app.Run();
 
 // --- HELPERS ---
-(double lat, double lng) GetRandomTalisayPoint(string path) {
-    var json = File.ReadAllText(path);
-    var data = JObject.Parse(json);
-    var features = (JArray)data["features"]!;
+(double lat, double lng) GetRandomTalisayPoint(string jsonContent) {
+    if (string.IsNullOrEmpty(jsonContent)) return (10.2447, 123.8480);
     
-    var randomBarangay = features[new Random().Next(features.Count)];
-    var geometry = randomBarangay["geometry"];
-    string type = geometry?["type"]?.ToString() ?? "";
+    try {
+        var data = JObject.Parse(jsonContent);
+        var features = (JArray)data["features"]!;
+        
+        var randomBarangay = features[new Random().Next(features.Count)];
+        var geometry = randomBarangay["geometry"];
+        string type = geometry?["type"]?.ToString() ?? "";
 
-    // This handles both simple Polygons and complex MultiPolygons common in Cebu maps
-    JToken? coord = type switch {
-        "Polygon" => geometry?["coordinates"]?[0]?[0],
-        "MultiPolygon" => geometry?["coordinates"]?[0]?[0]?[0],
-        _ => null
-    };
+        JToken? coord = type switch {
+            "Polygon" => geometry?["coordinates"]?[0]?[0],
+            "MultiPolygon" => geometry?["coordinates"]?[0]?[0]?[0],
+            _ => null
+        };
 
-    if (coord == null) return (10.2447, 123.8480); // Default to Talisay City Hall if it fails
-    return ((double)coord[1], (double)coord[0]); 
+        if (coord == null) return (10.2447, 123.8480); 
+        return ((double)coord[1], (double)coord[0]); 
+    } catch {
+        return (10.2447, 123.8480);
+    }
 }
 
 public static class GlobalData {

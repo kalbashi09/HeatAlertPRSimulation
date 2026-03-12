@@ -40,7 +40,7 @@
               "RelativeDocumentMoniker": "backend\\Program.cs",
               "ToolTip": "D:\\Programming\\Projects\\HeatAlertPRSimulation\\backend\\Program.cs",
               "RelativeToolTip": "backend\\Program.cs",
-              "ViewState": "AgIAAAwAAAAAAAAAAAAAADsAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAABEAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-03-12T11:37:36.494Z",
               "IsPinned": true,
@@ -56,8 +56,7 @@
               "RelativeToolTip": "backend\\MapEndpoints.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-12T11:59:29.562Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-03-12T11:59:29.562Z"
             },
             {
               "$type": "Document",
@@ -69,8 +68,7 @@
               "RelativeToolTip": "backend\\HeatSimulator.cs",
               "ViewState": "AgIAAGcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-12T11:59:18.101Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-03-12T11:59:18.101Z"
             },
             {
               "$type": "Document",
@@ -82,8 +80,7 @@
               "RelativeToolTip": "sharedresource\\talisaycitycebu.json",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2026-03-12T11:40:46.403Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-03-12T11:40:46.403Z"
             },
             {
               "$type": "Document",
@@ -95,8 +92,7 @@
               "RelativeToolTip": "backend\\DatabaseManager.cs",
               "ViewState": "AgIAAAkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-12T11:37:20.846Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-03-12T11:37:20.846Z"
             }
           ]
         }

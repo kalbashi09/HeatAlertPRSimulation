@@ -8,6 +8,11 @@ var builder = WebApplication.CreateBuilder(args);
 string connString = builder.Configuration.GetConnectionString("DefaultConnection")!;
 string botToken = builder.Configuration["BotSettings:TelegramToken"]!;
 
+// 1. Define the dynamic path at the top of your Program.cs (after builder is created)
+string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+// This goes from bin/Debug -> bin -> backend -> HeatAlertPRSimulation -> sharedresource
+string jsonPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "sharedresource", "talisaycitycebu.json"));
+
 // 1. SETUP SERVICES FIRST
 builder.Services.AddCors(options => {
     options.AddPolicy("AllowAll",
@@ -31,39 +36,35 @@ app.RegisterAlertEndpoints(db); // Pass db directly if needed, or let DI handle 
 // 3. START BACKGROUND SIMULATION
 _ = Task.Run(async () => {
     bot.StartBot();
-    Console.WriteLine("🚀 Monitoring system active...");
-    
     var simulator = new HeatSimulator(); 
     var rng = new Random();
 
     while (true)
     {
         try {
-            // MOVE rng.Next INSIDE the loop so every 30s is a different temp!
             int simTemp = rng.Next(25, 52); 
 
-            var randomPoint = GetRandomTalisayPoint("../sharedresource/talisaycitycebu.json");
+            // Use jsonPath instead of "../sharedresource/..."
+            var randomPoint = GetRandomTalisayPoint(jsonPath);
             
             var result = simulator.CreateManualAlert(
                 randomPoint.lat, 
                 randomPoint.lng, 
                 simTemp, 
-                "../sharedresource/talisaycitycebu.json"
-            );
+                jsonPath // CHANGE THIS TOO
+            ); 
             
             GlobalData.LatestAlert = result; 
-            await db.SaveHeatLog(result); // This writes it to MySQL
-            Console.WriteLine($"[LOG] Location: {result.BarangayName} | Temp: {result.HeatIndex}°C");
-
-            // Only broadcast if it's dangerous or unusually cool
-            if (result.HeatIndex >= 39 || result.HeatIndex < 30)
+            await db.SaveHeatLog(result); 
+            
+            if (result.HeatIndex >= 39 || result.HeatIndex < 29)
             {
                 await bot.ProcessAndBroadcastAlert(result);
             }
         }
         catch (Exception ex) { Console.WriteLine($"Error: {ex.Message}"); }
         
-        await Task.Delay(30000); // 30 seconds
+        await Task.Delay(30000); 
     }
 });
 

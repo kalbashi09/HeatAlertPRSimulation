@@ -95,7 +95,7 @@ namespace HeatAlert
                 "/danger"   => 42,
                 "/caution"  => 39,
                 "/normal"   => 30,
-                _           => 25 
+                _           => 24 
             };
 
             // Use the simulator to package the data (Reverse Geocoding included)

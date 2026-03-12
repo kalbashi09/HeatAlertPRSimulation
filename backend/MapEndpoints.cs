@@ -10,9 +10,53 @@ namespace HeatAlert
         {
             // GET: Fetch the current heat data
             app.MapGet("/api/current-alert", () => {
-                return GlobalData.LatestAlert != null 
-                    ? Results.Ok(GlobalData.LatestAlert) 
-                    : Results.NotFound("No data yet.");
+                var alert = GlobalData.LatestAlert;
+
+                if (alert == null) return Results.NotFound("No data yet.");
+
+                // Logic: If the live alert is in that "Boring" range, 
+                // maybe we tell the frontend there is no 'Active' Alert.
+                if (alert.HeatIndex >= 29 && alert.HeatIndex <= 38)
+                {
+                    return Results.Ok(new { 
+                        Status = "Stable", 
+                        Message = "Temperatures are within normal range.",
+                        LastReading = alert.HeatIndex,
+                        Barangay = alert.BarangayName
+                    });
+                }
+
+                // Otherwise, return the full Danger alert
+                return Results.Ok(alert);
+            });
+
+            // GET: Fetch the history of heat logs from the database
+            app.MapGet("/api/heat-history", async (DatabaseManager db, int? limit) => 
+            {
+                int finalLimit = limit ?? 100;
+                try 
+                {
+                    var history = await db.GetHistory(finalLimit);
+                    
+                    if (!history.Any()) return Results.NotFound("Database is empty.");
+
+                    // We "Select" and transform the data into a more 'friendly' JSON shape
+                    var friendlyHistory = history.Select(h => new {
+                        h.BarangayName,
+                        h.HeatIndex,
+                        h.Lat,
+                        h.Lng,
+                        Date = h.CreatedAt.ToString("MMM dd, yyyy"), // "Mar 12, 2026"
+                        Time = h.CreatedAt.ToString("hh:mm tt"),    // "06:55 PM"
+                        RawTimestamp = h.CreatedAt                   // Keep this for sorting!
+                    });
+
+                    return Results.Ok(friendlyHistory);
+                }
+                catch (Exception ex) 
+                {
+                    return Results.Problem($"Database Error: {ex.Message}");
+                }
             });
 
             // POST: Manually add a subscriber (e.g., from a Web Form)

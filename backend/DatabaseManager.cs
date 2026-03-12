@@ -13,34 +13,76 @@ namespace HeatAlert
         }
         public async Task SaveHeatLog(AlertResult result)
         {
+            // --- THE FILTER ---
+            // Ignore data IF it is greater than or equal to 29 AND less than or equal to 38.
+            if (result.HeatIndex >= 29 && result.HeatIndex <= 38) 
+            {
+                Console.WriteLine($"--- DB Skip: {result.HeatIndex}°C is in the 'Normal' range (29-38). ---");
+                return; 
+            }
+
             try 
             {
                 using var connection = new MySqlConnection(_connString);
                 await connection.OpenAsync();
-                Console.WriteLine("--- DB Debug: Connection Opened ---"); // Debug line
 
+                // This only runs if the temp is < 29 OR > 38
                 string query = @"INSERT INTO heat_logs (barangay, heat_index, latitude, longitude, created_at) 
                                 VALUES (@brgy, @heat, @lat, @lng, NOW())";
                                 
                 using var cmd = new MySqlCommand(query, connection);
+                
                 cmd.Parameters.AddWithValue("@brgy", result.BarangayName ?? "Unknown");
                 cmd.Parameters.AddWithValue("@heat", result.HeatIndex);
                 cmd.Parameters.AddWithValue("@lat", result.Lat);
                 cmd.Parameters.AddWithValue("@lng", result.Lng);
                 
-                int rows = await cmd.ExecuteNonQueryAsync();
-                Console.WriteLine($"--- DB Debug: Rows Affected: {rows} ---"); // Debug line
+                await cmd.ExecuteNonQueryAsync();
+                Console.WriteLine($"--- DB Saved: {result.BarangayName} recorded at {result.HeatIndex}°C ---");
+
+                _ = CleanupOldLogs();
             }
-            catch (Exception ex) // Catch EVERYTHING
+            catch (Exception ex) 
             {
                 Console.WriteLine($"[CRITICAL DB ERROR]: {ex.Message}");
-                Console.WriteLine(ex.StackTrace);
+            }
+        }
+
+        private async Task CleanupOldLogs() // This keeps only the latest 100 logs in the database to prevent bloat
+        {
+            try
+            {
+                using var connection = new MySqlConnection(_connString);
+                await connection.OpenAsync();
+
+                // Subquery: Find the ID of the 300th record (ordered newest to oldest)
+                // Anything with an ID smaller than that is "Old" and gets deleted.
+                string query = @"
+                    DELETE FROM heat_logs 
+                    WHERE id < (
+                        SELECT id FROM (
+                            SELECT id FROM heat_logs 
+                            ORDER BY created_at DESC 
+                            LIMIT 1 OFFSET 100 
+                        ) AS tmp
+                    )";
+
+                using var cmd = new MySqlCommand(query, connection);
+                int deletedRows = await cmd.ExecuteNonQueryAsync();
+                
+                if (deletedRows > 0)
+                {
+                    Console.WriteLine($"--- DB Cleanup: Removed {deletedRows} old logs ---");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DB CLEANUP ERROR]: {ex.Message}");
             }
         }
         
-        //
         // Store Alert Data to Database for frontend GET!
-        public async Task<List<AlertResult>> GetHistory(int limit = 20)
+        public async Task<List<AlertResult>> GetHistory(int limit = 100)
         {
             var logs = new List<AlertResult>();
             try 
@@ -48,7 +90,9 @@ namespace HeatAlert
                 using var connection = new MySqlConnection(_connString);
                 await connection.OpenAsync();
                 
-                string query = "SELECT barangay, heat_index, latitude, longitude FROM heat_logs ORDER BY created_at DESC LIMIT @limit";
+                // Include created_at in the SELECT
+                string query = "SELECT barangay, heat_index, latitude, longitude, created_at FROM heat_logs ORDER BY created_at DESC LIMIT @limit";
+                
                 using var cmd = new MySqlCommand(query, connection);
                 cmd.Parameters.AddWithValue("@limit", limit);
 
@@ -60,6 +104,7 @@ namespace HeatAlert
                         HeatIndex = reader.GetInt32(1),
                         Lat = reader.GetDouble(2),
                         Lng = reader.GetDouble(3),
+                        CreatedAt = reader.GetDateTime(4), // Map the timestamp here
                         RelativeLocation = "Historical Record"
                     });
                 }

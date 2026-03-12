@@ -12,6 +12,7 @@ namespace HeatAlert
         public double Lat { get; set; }
         public double Lng { get; set; }
         public int HeatIndex { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 
     public class HeatSimulator
@@ -25,9 +26,10 @@ namespace HeatAlert
             return "❄️ COOL";
         }
 
-        public string IdentifyBarangay(double lat, double lng, string jsonPath)
+       // This method reads the GeoJSON file and determines which barangay the coordinates belong to
+        public string IdentifyBarangay(double lat, double lng, string jsonPath) 
         {
-            // FIX CS0103: Declare these BEFORE the try block so they exist everywhere
+
             string closestBarangay = "Talisay City";
             double minDistance = double.MaxValue;
 
@@ -80,7 +82,7 @@ namespace HeatAlert
             return (minDistance < 0.005) ? closestBarangay : "Talisay (Outside)";
         }
 
-        private bool IsPointInPolygon(double lat, double lng, JToken polygon)
+        private bool IsPointInPolygon(double lat, double lng, JToken polygon) //This Methood uses the Ray Casting algorithm to determine if the point is inside the polygon
         {
             bool isInside = false;
             var points = polygon.Children().ToList(); 

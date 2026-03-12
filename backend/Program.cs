@@ -11,7 +11,7 @@ string botToken = builder.Configuration["BotSettings:TelegramToken"]!;
 // 1. Define the dynamic path at the top of your Program.cs (after builder is created)
 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 // This goes from bin/Debug -> bin -> backend -> HeatAlertPRSimulation -> sharedresource
-string jsonPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "sharedresource", "talisaycitycebu.json"));
+string jsonPath = Path.GetFullPath(Path.Combine(baseDir , "..", "..", "..", "..", "sharedresource", "talisaycitycebu.json"));
 
 // 1. SETUP SERVICES FIRST
 builder.Services.AddCors(options => {

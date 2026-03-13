@@ -86,20 +86,31 @@ app.Run();
     try {
         var data = JObject.Parse(jsonContent);
         var features = (JArray)data["features"]!;
+        var rng = new Random(); // Create one instance to use
         
-        var randomBarangay = features[new Random().Next(features.Count)];
+        // 1. Pick a random Barangay
+        var randomBarangay = features[rng.Next(features.Count)];
         var geometry = randomBarangay["geometry"];
         string type = geometry?["type"]?.ToString() ?? "";
 
-        JToken? coord = type switch {
-            "Polygon" => geometry?["coordinates"]?[0]?[0],
-            "MultiPolygon" => geometry?["coordinates"]?[0]?[0]?[0],
+        // 2. Get the list of all corners (vertices) for that Barangay
+        JToken? allCoords = type switch {
+            "Polygon" => geometry?["coordinates"]?[0],
+            "MultiPolygon" => geometry?["coordinates"]?[0]?[0],
             _ => null
         };
 
-        if (coord == null) return (10.2447, 123.8480); 
-        return ((double)coord[1], (double)coord[0]); 
+        if (allCoords == null || !allCoords.HasValues) return (10.2447, 123.8480);
+
+        // 3. INNOVATION: Pick a RANDOM corner from the array instead of always [0]
+        int totalPoints = allCoords.Count();
+        int randomPointIndex = rng.Next(totalPoints);
+        var selectedPoint = allCoords[randomPointIndex];
+
+        // GeoJSON is [lng, lat], so we return [1, 0]
+        return ((double)selectedPoint[1], (double)selectedPoint[0]); 
     } catch {
+        // Fallback to City Hall if the JSON parsing fails
         return (10.2447, 123.8480);
     }
 }

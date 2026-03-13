@@ -82,7 +82,7 @@ namespace HeatAlert
         }
         
         // Store Alert Data to Database for frontend GET!
-        public async Task<List<AlertResult>> GetHistory(int limit = 100)
+        public async Task<List<AlertResult>> GetHistory(int limit = 100, int offset = 0)
         {
             var logs = new List<AlertResult>();
             try 
@@ -90,13 +90,18 @@ namespace HeatAlert
                 using var connection = new MySqlConnection(_connString);
                 await connection.OpenAsync();
                 
-                // Include created_at in the SELECT
-                string query = "SELECT barangay, heat_index, latitude, longitude, created_at FROM heat_logs ORDER BY created_at DESC LIMIT @limit";
+                // Modified query to include OFFSET for pagination
+                string query = @"SELECT barangay, heat_index, latitude, longitude, created_at 
+                                FROM heat_logs 
+                                ORDER BY created_at DESC 
+                                LIMIT @limit OFFSET @offset";
                 
                 using var cmd = new MySqlCommand(query, connection);
                 cmd.Parameters.AddWithValue("@limit", limit);
+                cmd.Parameters.AddWithValue("@offset", offset); // Add this parameter
 
                 using var reader = await cmd.ExecuteReaderAsync();
+       
                 while (await reader.ReadAsync())
                 {
                     logs.Add(new AlertResult {

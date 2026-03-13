@@ -86,14 +86,14 @@ app.Run();
     try {
         var data = JObject.Parse(jsonContent);
         var features = (JArray)data["features"]!;
-        var rng = new Random(); // Create one instance to use
+        var rng = new Random(); 
         
         // 1. Pick a random Barangay
         var randomBarangay = features[rng.Next(features.Count)];
         var geometry = randomBarangay["geometry"];
         string type = geometry?["type"]?.ToString() ?? "";
 
-        // 2. Get the list of all corners (vertices) for that Barangay
+        // 2. Get the list of all corners (vertices)
         JToken? allCoords = type switch {
             "Polygon" => geometry?["coordinates"]?[0],
             "MultiPolygon" => geometry?["coordinates"]?[0]?[0],
@@ -102,15 +102,30 @@ app.Run();
 
         if (allCoords == null || !allCoords.HasValues) return (10.2447, 123.8480);
 
-        // 3. INNOVATION: Pick a RANDOM corner from the array instead of always [0]
-        int totalPoints = allCoords.Count();
-        int randomPointIndex = rng.Next(totalPoints);
-        var selectedPoint = allCoords[randomPointIndex];
+        // --- NEW INNOVATION: BOUNDING BOX CENTER + SAFE JITTER ---
+        var pointsList = allCoords.Children().ToList();
 
-        // GeoJSON is [lng, lat], so we return [1, 0]
-        return ((double)selectedPoint[1], (double)selectedPoint[0]); 
+        // Find the "Box" that contains the whole Barangay
+        double minLng = pointsList.Min(p => (double)p[0]);
+        double maxLng = pointsList.Max(p => (double)p[0]);
+        double minLat = pointsList.Min(p => (double)p[1]);
+        double maxLat = pointsList.Max(p => (double)p[1]);
+
+        // Find the center of that box
+        double centerLat = (minLat + maxLat) / 2;
+        double centerLng = (minLng + maxLng) / 2;
+
+        // Add a 20% "Safe Jitter" so points aren't identical but stay near the center
+        // This keeps markers away from the jagged borders/Cebu City lines
+        double latRange = (maxLat - minLat) * 0.2;
+        double lngRange = (maxLng - minLng) * 0.2;
+
+        double finalLat = centerLat + ((rng.NextDouble() - 0.5) * latRange);
+        double finalLng = centerLng + ((rng.NextDouble() - 0.5) * lngRange);
+
+        return (finalLat, finalLng); 
     } catch {
-        // Fallback to City Hall if the JSON parsing fails
+        // Fallback to City Hall
         return (10.2447, 123.8480);
     }
 }

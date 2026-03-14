@@ -128,10 +128,8 @@ This ensures alerts only trigger for **abnormal heat spikes**.
 
 Planned improvements for future versions:
 
-- [ ] Integrate **Leaflet.js** for interactive map visualization
+- [ ] Integrate **Maplibre.js** for interactive map visualization
 - [ ] Add **WebSocket / SignalR** for real-time dashboard updates
-- [ ] Transition API calls to **C# for Godot integration**
 - [ ] Historical heat trend charts
-- [ ] Heat anomaly prediction
 
 ---

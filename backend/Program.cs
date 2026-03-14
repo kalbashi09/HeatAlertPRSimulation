@@ -77,6 +77,7 @@ _ = Task.Run(async () => {
     }
 });
 
+app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 app.Run();
 
 // --- HELPERS ---

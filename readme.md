@@ -1,13 +1,14 @@
+````text
 # 📍 HEAT ALERT SYSTEM (HEALERTSYS)
 
-> **Information:** In this README are for instructional use.  
+> **Information:** These instructions are for instructional use.
 > **Execution:** Check `commands.txt` to run the server.
 
 ---
 
 ## 🛠️ [DATABASE TEMPLATE]
 
-````sql
+```sql
 CREATE DATABASE HeatIndicator;
 USE HeatIndicator;
 
@@ -37,57 +38,72 @@ CREATE TABLE IF NOT EXISTS heat_logs (
 -- For Maintenance:
 -- SELECT * FROM heat_logs;
 
-🌐 [** FOR FRONT END **]
--- USE this API END POINT SCRIPT TO GAIN ACCESS WITH the data running in the API --
+````
 
-const apiURL = "[https://3h48gqgv-5000.asse.devtunnels.ms/api/heat-history](https://3h48gqgv-5000.asse.devtunnels.ms/api/heat-history)";
+## 🌐 [FOR FRONT END]
+
+_Use this API endpoint script to gain access to the data running in the API._
+
+```javascript
+const apiURL =
+  "[https://3h48gqgv-5000.asse.devtunnels.ms/api/heat-history](https://3h48gqgv-5000.asse.devtunnels.ms/api/heat-history)";
 
 async function getHeatHistory() {
-    try {
-        const response = await fetch(apiURL, {
-            method: "GET",
-            headers: {
-                // 1. Your Custom Security Key
-                "X-API-KEY": "Talisay_Secret_2026",
+  try {
+    const response = await fetch(apiURL, {
+      method: "GET",
+      headers: {
+        // 1. Your Custom Security Key
+        "X-API-KEY": "Talisay_Secret_2026",
 
-                // 2. The "Bypass" for VS Code Tunnels
-                "X-Tunnel-Skip-AntiPhishing-Page": "true",
+        // 2. The "Bypass" for VS Code Tunnels
+        "X-Tunnel-Skip-Anti-Phishing-Page": "true",
 
-                "Accept": "application/json"
-            }
-        });
+        Accept: "application/json",
+      },
+    });
 
-        if (!response.ok) {
-            throw new Error(`Bouncer says no! Status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log("Heat Data Received:", data);
-        return data;
-
-    } catch (error) {
-        console.error("Connection failed:", error);
+    if (!response.ok) {
+      throw new Error(`Bouncer says no! Status: ${response.status}`);
     }
+
+    const data = await response.json();
+    console.log("🔥 Heat Data Received:", data);
+    return data;
+  } catch (error) {
+    console.error("🚫 Connection failed:", error);
+  }
 }
+```
 
-🏗️ [PROJECT IMPLEMENTATION DETAILS]
-Geo-Spatial: Implemented Centroid + Bounding Box logic to ensure points land inside Barangays.
+---
 
-Validation: Ray-Casting (IsPointInPolygon) added to prevent "Outside Talisay" errors.
+## 🏗️ [PROJECT IMPLEMENTATION DETAILS]
 
-Security: Integrated X-API-KEY "Bouncer" middleware and Tunnel Anti-Phishing bypass.
+- **Geo-Spatial:** Implemented Centroid + Bounding Box logic to ensure points land inside Barangays.
+- **Validation:** Ray-Casting (**IsPointInPolygon**) added to prevent "Outside Talisay" errors.
+- **Security:** Integrated `X-API-KEY` "Bouncer" middleware and Tunnel Anti-Phishing bypass.
+- **Performance:** DB prunes logs to the last 100 entries to save resources on **i7-4700MQ** hardware.
+- **Filtering:** System ignores normal range (29°C-38°C) to prioritize anomaly alerts.
 
-Performance: DB prunes logs to the last 100 entries to save resources on i7-4700MQ hardware.
+## 🚀 [NEXT STEPS]
 
-Filtering: System ignores normal range (29°C-38°C) to prioritize anomaly alerts.
+- [ ] Integrate **Leaflet.js** for real-time visual mapping.
+- [ ] Implement **WebSocket/SignalR** for live dashboard updates.
+- [ ] Transition API calls to **C#** for Godot integration.
 
-🚀 [NEXT STEPS]
-Integrate Leaflet.js for real-time visual mapping.
-
-Implement WebSocket/SignalR for live dashboard updates.
+---
 
 ### 💡 Why this is the "Pro" way:
-By putting the SQL inside ` ```sql ` and the Javascript inside ` ```javascript `, GitHub will automatically highlight the syntax (colors), making it much easier for your team to read.
 
-**Does this look like the single, unified file you were looking for?** Once you paste it, try pressing `Ctrl+Shift+V` in VS Code to see the "Preview" of how it will look on GitHub!
-````
+By nesting the SQL and Javascript inside their respective code blocks within this Markdown file, GitHub will automatically provide syntax highlighting.
+
+**Pro-Tip:** Press `Ctrl+Shift+V` in VS Code to see the live preview!
+
+```
+
+I used a `text` block wrapper this time to prevent the UI from trying to render the Markdown headers and splitting them up. This should keep it as one continuous "copyable" object.
+
+Would you like me to add a specific **C# / Godot** section to this README since you're transitioning the project over?
+
+```

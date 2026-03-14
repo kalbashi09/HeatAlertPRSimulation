@@ -1,12 +1,26 @@
-<pre>
+# 📍 HEAT ALERT SYSTEM (HEALERTSYS)
 
-📍 HEAT ALERT SYSTEM (HEALERTSYS)
-> Information: These instructions are for instructional use.
+A lightweight heat monitoring and alert system designed to detect and log **dangerous heat index anomalies** within barangays.
 
-> Execution: Check commands.txt to run the server.
+Built with performance in mind for low-resource hardware while still supporting future visualization and live updates.
 
-🛠️ [DATABASE TEMPLATE]
-SQL
+---
+
+# ⚠️ Notice
+
+These instructions are **for instructional and development purposes**.
+
+To run the server, check:
+
+`commands.txt`
+
+---
+
+# 🛠️ Database Setup
+
+### SQL Template
+
+```sql
 CREATE DATABASE HeatIndicator;
 USE HeatIndicator;
 
@@ -16,7 +30,7 @@ CREATE TABLE subscribers (
     subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- For Maintenance:
+-- Maintenance Commands
 -- SELECT * FROM subscribers;
 -- TRUNCATE TABLE subscribers;
 
@@ -28,68 +42,96 @@ CREATE TABLE IF NOT EXISTS heat_logs (
     longitude DOUBLE(10, 6) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
-    -- Indexing for performance (great for your future history charts!)
+    -- Indexing for performance
     INDEX idx_barangay (barangay),
     INDEX idx_created (created_at)
 );
 
--- For Maintenance:
+-- Maintenance Commands
 -- SELECT * FROM heat_logs;
-🌐 [FOR FRONT END]
-Use this API endpoint script to gain access to the data running in the API.
+```
 
-JavaScript
-const apiURL = &quot;[https://3h48gqgv-5000.asse.devtunnels.ms/api/heat-history](https://3h48gqgv-5000.asse.devtunnels.ms/api/heat-history)&quot;;
+---
+
+# 🌐 Frontend API Access
+
+Use the following JavaScript to access the heat history API.
+
+---
+
+```javascript
+const apiURL = "https://3h48gqgv-5000.asse.devtunnels.ms/api/heat-history";
 
 async function getHeatHistory() {
-    try {
-        const response = await fetch(apiURL, {
-            method: &quot;GET&quot;,
-            headers: {
-                // 1. Your Custom Security Key
-                &quot;X-API-KEY&quot;: &quot;Talisay_Secret_2026&quot;,
+  try {
+    const response = await fetch(apiURL, {
+      method: "GET",
+      headers: {
+        // Custom security key
+        "X-API-KEY": "Talisay_Secret_2026",
 
-                // 2. The &quot;Bypass&quot; for VS Code Tunnels
-                &quot;X-Tunnel-Skip-Anti-Phishing-Page&quot;: &quot;true&quot;,
+        // VS Code Dev Tunnel bypass
+        "X-Tunnel-Skip-Anti-Phishing-Page": "true",
 
-                &quot;Accept&quot;: &quot;application/json&quot;
-            }
-        });
+        Accept: "application/json",
+      },
+    });
 
-        if (!response.ok) {
-            throw new Error(`Bouncer says no! Status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log(&quot;🔥 Heat Data Received:&quot;, data);
-        return data;
-
-    } catch (error) {
-        console.error(&quot;🚫 Connection failed:&quot;, error);
+    if (!response.ok) {
+      throw new Error(`Bouncer says no! Status: ${response.status}`);
     }
+
+    const data = await response.json();
+    console.log("🔥 Heat Data Received:", data);
+    return data;
+  } catch (error) {
+    console.error("🚫 Connection failed:", error);
+  }
 }
-🏗️ [PROJECT IMPLEMENTATION DETAILS]
-Geo-Spatial: Implemented Centroid + Bounding Box logic to ensure points land inside Barangays.
+```
 
-Validation: Ray-Casting (IsPointInPolygon) added to prevent "Outside Talisay" errors.
+---
 
-Security: Integrated X-API-KEY "Bouncer" middleware and Tunnel Anti-Phishing bypass.
+# 🏗️ Implementation Details
 
-Performance: DB prunes logs to the last 100 entries to save resources on i7-4700MQ hardware.
+### Geo-Spatial Logic
 
-Filtering: System ignores normal range (29°C-38°C) to prioritize anomaly alerts.
+Uses **Centroid + Bounding Box calculations** to ensure location points fall within barangay boundaries.
 
-🚀 [NEXT STEPS]
-[ ] Integrate Leaflet.js for real-time visual mapping.
+### Validation
 
-[ ] Implement WebSocket/SignalR for live dashboard updates.
+Implements **Ray-Casting (`IsPointInPolygon`)** to prevent points from appearing outside the Talisay area.
 
-[ ] Transition API calls to C# for Godot integration.
+### Security
 
-💡 Why this is the "Pro" way:
-By nesting the SQL and Javascript inside their respective code blocks within this Markdown file, GitHub will automatically provide syntax highlighting.
+Includes a **custom API authentication layer** using:
 
-Pro-Tip: Press Ctrl+Shift+V in VS Code to see the live preview!
-</pre>
+`X-API-KEY`
 
-ZZ
+Also supports **VS Code Tunnel Anti-Phishing bypass headers**.
+
+### Performance
+
+The database automatically **prunes logs to the latest 100 entries** to maintain performance on lower-resource hardware.
+
+### Smart Filtering
+
+The system **ignores normal heat ranges**:
+
+`29°C – 38°C`
+
+This ensures alerts only trigger for **abnormal heat spikes**.
+
+---
+
+# 🚀 Roadmap
+
+Planned improvements for future versions:
+
+- [ ] Integrate **Leaflet.js** for interactive map visualization
+- [ ] Add **WebSocket / SignalR** for real-time dashboard updates
+- [ ] Transition API calls to **C# for Godot integration**
+- [ ] Historical heat trend charts
+- [ ] Heat anomaly prediction
+
+---

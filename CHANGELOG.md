@@ -5,6 +5,14 @@ This project adheres to a custom iterative development cycle.
 
 ---
 
+## [Planned / Next Steps]
+
+- **Maplibre.js Mapping:** Visualizing the Centroid data on a real-world Talisay map.
+- **WebSocket/SignalR:** Real-time push notifications to eliminate manual dashboard refreshes.
+- **Data Analytics:** Building a heat-map trend visualizer based on the `alert_logs` history.
+
+---
+
 ## [1.2.0] - 2026-03-14
 
 ### 🔵 ADVANCED / INTEGRATED (C# Migration Complete)
@@ -62,9 +70,3 @@ This project adheres to a custom iterative development cycle.
 - **Broadcast Engine:** Initial logic to fetch SQL chat IDs and broadcast high-heat triggers.
 
 ---
-
-## [Planned / Next Steps]
-
-- **Leaflet.js Mapping:** Visualizing the Centroid data on a real-world Talisay map.
-- **WebSocket/SignalR:** Real-time push notifications to eliminate manual dashboard refreshes.
-- **Data Analytics:** Building a heat-map trend visualizer based on the `alert_logs` history.

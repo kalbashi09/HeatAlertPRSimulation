@@ -111,9 +111,33 @@ namespace HeatAlert
             _pendingSimulations.Remove(chatId);
         }
 
+       // Add this variable at the top of your BotAlertSender class
+        private DateTime _lastLogTime = DateTime.MinValue;
+
         private Task HandleErrorAsync(ITelegramBotClient bot, Exception ex, CancellationToken ct)
         {
-            Console.WriteLine($"Bot Error: {ex.Message}");
+            // 1. Only log to the file once every 30 seconds to prevent "Error Storms"
+            if ((DateTime.Now - _lastLogTime).TotalSeconds < 30)
+            {
+                // Still print to console so you see it, but DON'T touch the Hard Drive
+                Console.WriteLine($"[RATE LIMITED] Bot still offline: {ex.Message}");
+                return Task.CompletedTask;
+            }
+
+            _lastLogTime = DateTime.Now;
+
+            string logFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Logs");
+            string logPath = Path.Combine(logFolder, "bot_errors.txt");
+            string errorMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Error: {ex.Message}{Environment.NewLine}";
+
+            try 
+            {
+                if (!Directory.Exists(logFolder)) Directory.CreateDirectory(logFolder);
+                File.AppendAllText(logPath, errorMessage + "-----------------------------------" + Environment.NewLine);
+                Console.WriteLine("📂 Error written to log file.");
+            } 
+            catch { /* Avoid crashing the logger */ }
+
             return Task.CompletedTask;
         }
 

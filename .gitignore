@@ -6,6 +6,8 @@ backend/bin/
 backend/obj/
 backend/Logs/
 
+frontend/config.js
+
 # Ignore local environment files
 .env
 

@@ -135,10 +135,11 @@
       </div>
     </div>
 
+    <script src="config.js"></script>
+
     <script>
-      const apiURL =
-        "https://3h48gqgv-5000.asse.devtunnels.ms/api/live-heat-history";
-      const apiKey = "h43dsHfjKS956032b8a9e5c1f0e4b";
+      const apiKey = HEALERTSYS_CONFIG.apiKey;
+      const apiURL = HEALERTSYS_CONFIG.apiURL;
 
       // Initialize Map
       const map = new maplibregl.Map({
@@ -214,7 +215,7 @@
       }
 
       map.on("load", renderHistory);
-      setInterval(renderHistory, 60000); // Auto-update every minute
+      setInterval(renderHistory, 10000); // Auto-update every 10 seconds
     </script>
   </body>
 </html>

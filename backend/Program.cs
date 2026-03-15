@@ -64,7 +64,6 @@ _ = Task.Run(async () => {
             var result = simulator.CreateManualAlert(randomPoint.lat, randomPoint.lng, simTemp); 
             
             GlobalData.LatestAlert = result; 
-            await db.SaveHeatLog(result); 
             
             Console.WriteLine($"[LOG] {result.BarangayName} | {result.HeatIndex}°C | {DateTime.Now:hh:mm:ss tt}");
 

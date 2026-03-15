@@ -40,6 +40,8 @@ builder.Services.AddSingleton(bot);
 var app = builder.Build();
 
 app.UseCors("AllowAll");
+app.UseRouting();
+
 app.RegisterAlertEndpoints(db);
 
 // 2. START SIMULATION
@@ -77,7 +79,7 @@ _ = Task.Run(async () => {
     }
 });
 
-app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+
 app.Run();
 
 // --- HELPERS ---

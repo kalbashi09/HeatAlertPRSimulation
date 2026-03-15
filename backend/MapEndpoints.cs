@@ -43,7 +43,7 @@ namespace HeatAlert
             });
 
             // 2. GET: Heat History (SECURED)
-            app.MapGet("/api/heat-history", async (HttpContext context, DatabaseManager db, int? limit) => 
+            app.MapGet("/api/live-heat-history", async (HttpContext context, DatabaseManager db, int? limit) => 
             {
                 if (IsNotAuthorized(context)) return Results.Unauthorized();
 

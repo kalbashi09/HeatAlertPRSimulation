@@ -29,17 +29,23 @@ namespace HeatAlert
 
         public async Task ProcessAndBroadcastAlert(AlertResult result)
         {
+            // 1. Update the live map data
             GlobalData.LatestAlert = result;
 
-            // 2. FIXED: Pass _mapData to constructor
+            // 2. NEW: Save the simulated/actual alert to the database
+            // This ensures your History Table and Dashboard can see it!
+            await _db.SaveHeatLog(result); 
+
+            // 3. Prepare the Telegram message
             var simulator = new HeatSimulator(_mapData);
             string level = simulator.GetDangerLevel(result.HeatIndex);
 
             string alertMsg = $"{level}\n" +
-                              $"🌡️ Temp: {result.HeatIndex}°C\n" +
-                              $"📍 Location: {result.BarangayName}\n" +
-                              $"🌐 Coord: {result.Lat:F4}, {result.Lng:F4}";
+                            $"🌡️ Temp: {result.HeatIndex}°C\n" +
+                            $"📍 Location: {result.BarangayName}\n" +
+                            $"🌐 Coord: {result.Lat:F4}, {result.Lng:F4}";
 
+            // 4. Send to all subscribers
             var subs = await _db.GetAllSubscriberIds();
             await BroadcastAlert(alertMsg, subs);
         }

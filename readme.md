@@ -60,7 +60,7 @@ Use the following JavaScript to access the heat history API.
 ---
 
 ```javascript
-const apiURL = "https://3h48gqgv-5000.asse.devtunnels.ms/api/heat-history";
+const apiURL = "https://3h48gqgv-5000.asse.devtunnels.ms/api/name-of-api";
 
 async function getHeatHistory() {
   try {
